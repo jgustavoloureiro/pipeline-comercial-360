@@ -1,63 +1,55 @@
-import duckdb
+from src.ingestion.ingest_excel import ingest_excel_to_bronze
+from src.transformation.transform_silver import transformar_bronze_para_silver
+from src.quality.data_quality import executar_validacoes_silver
+from src.transformation.build_gold import construir_gold_comercial
+from src.transformation.build_dimensional_gold import construir_gold_dimensional
 
 
-def consultar_banco_analytics():
-    con = duckdb.connect("database/comercial_analytics.duckdb")
+def main():
+    print("Iniciando pipeline de dados comercial 360")
 
-    print("=" * 80)
-    print("Views disponíveis no banco")
-    print("=" * 80)
+    bronze_file = ingest_excel_to_bronze(
+        input_path="data/raw/base_comercial_funil_360.xlsx",
+        sheet_name="Base_Comercial",
+        output_dir="data/bronze"
+    )
 
-    views = con.execute("""
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'main'
-        ORDER BY table_name
-    """).df()
+    silver_file = transformar_bronze_para_silver(
+        input_path=str(bronze_file),
+        output_dir="data/silver"
+    )
 
-    print(views)
+    qualidade_aprovada = executar_validacoes_silver(
+        input_path=str(silver_file),
+        log_dir="logs"
+    )
 
-    print("\n")
-    print("=" * 80)
-    print("Receita, meta e atingimento por mês")
-    print("=" * 80)
+    if not qualidade_aprovada:
+        print("Pipeline interrompido. Qualidade reprovada.")
+        return
 
-    resultado_kpis = con.execute("""
-        SELECT
-            competencia,
-            rotulo,
-            ROUND(receita, 2) AS receita,
-            ROUND(meta, 2) AS meta,
-            ROUND(atingimento_meta * 100, 2) AS atingimento_meta_pct,
-            ROUND(win_rate * 100, 2) AS win_rate_pct
-        FROM vw_gold_kpis_comerciais
-        ORDER BY ano, mes
-    """).df()
+    gold_files = construir_gold_comercial(
+        input_path=str(silver_file),
+        output_dir="data/gold"
+    )
 
-    print(resultado_kpis)
+    gold_dimensional_files = construir_gold_dimensional(
+        input_path=str(silver_file),
+        output_dir="data/gold"
+    )
 
-    print("\n")
-    print("=" * 80)
-    print("Top produtos por pipeline")
-    print("=" * 80)
+    print("Pipeline finalizado com sucesso.")
+    print(f"Bronze: {bronze_file}")
+    print(f"Silver: {silver_file}")
 
-    resultado_pipeline = con.execute("""
-        SELECT
-            produto,
-            ROUND(pipeline_aberto, 2) AS pipeline_aberto,
-            ROUND(forecast_ponderado, 2) AS forecast_ponderado,
-            ROUND(receita, 2) AS receita,
-            oportunidades,
-            ganhos,
-            ROUND(conversao_pipeline_forecast * 100, 2) AS conversao_pipeline_forecast_pct
-        FROM vw_gold_pipeline_produto
-        ORDER BY pipeline_aberto DESC
-    """).df()
+    print("Gold Analítica:")
+    for nome, caminho in gold_files.items():
+        print(f"- {nome}: {caminho}")
 
-    print(resultado_pipeline)
-
-    con.close()
+    print("Gold Dimensional:")
+    for nome, caminho in gold_dimensional_files.items():
+        print(f"- {nome}: {caminho}")
 
 
 if __name__ == "__main__":
-    consultar_banco_analytics()
+    main()

@@ -2,13 +2,13 @@
 
 Projeto de Engenharia de Dados desenvolvido em Python para estruturar um pipeline analítico a partir de uma base comercial em Excel.
 
-O objetivo é simular uma arquitetura moderna em camadas, transformando dados brutos em tabelas analíticas prontas para consumo em dashboards, consultas SQL e análises de negócio.
+O objetivo é demonstrar um fluxo ponta a ponta de dados, saindo de uma fonte bruta, passando por camadas de tratamento, validação e modelagem, até a disponibilização dos dados para consumo analítico via SQL.
 
 ---
 
 ## Visão Geral
 
-Este projeto realiza o fluxo completo:
+O projeto segue uma arquitetura em camadas:
 
 ```text
 Excel Raw
@@ -19,14 +19,31 @@ Silver
    ↓
 Data Quality
    ↓
-Gold
+Gold Analítica
+   ↓
+Gold Dimensional
    ↓
 DuckDB Analytics
    ↓
 SQL Views
 ```
 
-A proposta é demonstrar práticas fundamentais de Engenharia de Dados, incluindo ingestão, padronização, validação, modelagem analítica e disponibilização dos dados para consumo.
+Essa estrutura simula práticas utilizadas em ambientes de Engenharia de Dados, Analytics Engineering e Business Intelligence.
+
+---
+
+## Objetivo do Projeto
+
+Construir um pipeline de dados capaz de:
+
+* Ler uma base comercial em Excel
+* Criar uma camada Bronze em Parquet
+* Padronizar e tratar os dados na camada Silver
+* Executar validações de qualidade
+* Criar tabelas Gold analíticas
+* Criar um modelo dimensional com fatos e dimensões
+* Disponibilizar os dados em um banco DuckDB
+* Consultar os dados por meio de SQL
 
 ---
 
@@ -39,6 +56,8 @@ A proposta é demonstrar práticas fundamentais de Engenharia de Dados, incluind
 * Parquet
 * DuckDB
 * SQL
+* Git
+* GitHub
 
 ---
 
@@ -60,7 +79,13 @@ pipeline-comercial-360/
 │   └── gold/
 │       ├── gold_kpis_comerciais.parquet
 │       ├── gold_funil_comercial.parquet
-│       └── gold_pipeline_produto.parquet
+│       ├── gold_pipeline_produto.parquet
+│       ├── dim_tempo.parquet
+│       ├── dim_produto.parquet
+│       ├── dim_regiao.parquet
+│       ├── dim_canal.parquet
+│       ├── dim_segmento.parquet
+│       └── fato_comercial.parquet
 │
 ├── database/
 │   └── comercial_analytics.duckdb
@@ -73,7 +98,8 @@ pipeline-comercial-360/
 │   │
 │   ├── transformation/
 │   │   ├── transform_silver.py
-│   │   └── build_gold.py
+│   │   ├── build_gold.py
+│   │   └── build_dimensional_gold.py
 │   │
 │   └── quality/
 │       └── data_quality.py
@@ -84,6 +110,7 @@ pipeline-comercial-360/
 ├── create_database.py
 ├── query_gold.py
 ├── query_database.py
+├── query_dimensional.py
 ├── main.py
 ├── requirements.txt
 ├── .gitignore
@@ -92,7 +119,7 @@ pipeline-comercial-360/
 
 ---
 
-## Camadas do Pipeline
+## Arquitetura em Camadas
 
 ### Raw
 
@@ -102,19 +129,21 @@ Camada de entrada contendo o arquivo original em Excel.
 data/raw/base_comercial_funil_360.xlsx
 ```
 
-Essa camada representa a fonte original dos dados antes de qualquer tratamento.
+Essa camada representa a fonte original dos dados, antes de qualquer transformação.
 
 ---
 
 ### Bronze
 
-Camada de ingestão, onde os dados são lidos da origem e salvos em formato Parquet, mantendo a estrutura próxima da fonte original.
+Camada de ingestão dos dados.
 
-Também são adicionadas colunas técnicas, como:
+Nesta etapa, a base Excel é lida e convertida para Parquet, mantendo a estrutura próxima da origem e adicionando colunas técnicas de rastreabilidade.
 
-* arquivo de origem
-* aba de origem
-* data de carga
+Colunas técnicas adicionadas:
+
+* arquivo_origem
+* aba_origem
+* data_carga
 * camada
 
 Arquivo gerado:
@@ -131,11 +160,12 @@ Camada de tratamento e padronização.
 
 Nesta etapa são aplicadas regras como:
 
-* padronização dos nomes das colunas
-* remoção de espaços em branco
-* tratamento de valores nulos
-* criação de identificador técnico
-* organização da base para uso analítico
+* Padronização dos nomes das colunas
+* Remoção de espaços em branco
+* Tratamento de valores nulos
+* Conversão e organização de tipos de dados
+* Criação de identificador técnico
+* Preparação da base para uso analítico
 
 Arquivo gerado:
 
@@ -145,33 +175,36 @@ data/silver/silver_comercial.parquet
 
 ---
 
-### Data Quality
+## Data Quality
 
-Camada de validação da qualidade dos dados.
+Antes da construção da camada Gold, o pipeline executa validações de qualidade sobre a camada Silver.
 
-Foram implementadas validações como:
+Validações implementadas:
 
-* base não pode estar vazia
-* colunas obrigatórias precisam existir
-* campos essenciais não podem ser nulos
-* métricas comerciais não podem ter valores negativos
-* mês precisa estar entre 1 e 12
-* validação lógica das etapas do funil
-* verificação de duplicidade técnica
+* Verificação se a base está vazia
+* Verificação de colunas obrigatórias
+* Validação de nulos em campos essenciais
+* Validação de valores negativos em métricas comerciais
+* Validação de mês entre 1 e 12
+* Validação de anos esperados
+* Validação lógica das etapas do funil
+* Verificação de duplicidade técnica
 
-Os relatórios de qualidade são salvos em:
+Os relatórios são salvos em:
 
 ```text
 logs/
 ```
 
+Quando a qualidade é aprovada, o pipeline segue para a camada Gold.
+
 ---
 
-### Gold
+## Gold Analítica
 
-Camada analítica modelada para consumo.
+A camada Gold Analítica consolida os dados em tabelas prontas para consumo direto por dashboards, análises e consultas SQL.
 
-Foram criadas três tabelas principais:
+Tabelas criadas:
 
 ```text
 gold_kpis_comerciais.parquet
@@ -179,21 +212,100 @@ gold_funil_comercial.parquet
 gold_pipeline_produto.parquet
 ```
 
-Essas tabelas consolidam os dados para análises de:
+### gold_kpis_comerciais
 
-* receita
-* meta
-* atingimento da meta
-* win rate
-* conversão do funil
-* pipeline por produto
-* forecast ponderado
+Tabela consolidada por competência, contendo indicadores como:
+
+* Leads
+* MQL
+* SQL
+* Oportunidades
+* Propostas
+* Negociação
+* Ganhos
+* Perdidos
+* Receita
+* Meta
+* Pipeline aberto
+* Forecast ponderado
+* Atingimento da meta
+* Win rate
+* Conversão lead-venda
+
+### gold_funil_comercial
+
+Tabela consolidada das etapas do funil comercial:
+
+* Leads
+* MQL
+* SQL
+* Oportunidades
+* Propostas
+* Negociação
+* Ganhos
+
+### gold_pipeline_produto
+
+Tabela consolidada de pipeline por produto, com métricas como:
+
+* Pipeline aberto
+* Forecast ponderado
+* Receita
+* Oportunidades
+* Ganhos
+* Conversão pipeline-forecast
+
+---
+
+## Gold Dimensional
+
+Além das tabelas Gold analíticas, o projeto possui uma camada Gold Dimensional estruturada em modelo estrela.
+
+Essa modelagem separa as entidades descritivas em dimensões e mantém as métricas na tabela fato.
+
+Dimensões criadas:
+
+```text
+dim_tempo.parquet
+dim_produto.parquet
+dim_regiao.parquet
+dim_canal.parquet
+dim_segmento.parquet
+```
+
+Tabela fato criada:
+
+```text
+fato_comercial.parquet
+```
+
+### Modelo Estrela
+
+```text
+dim_tempo
+dim_produto
+dim_regiao
+dim_canal
+dim_segmento
+        ↓
+  fato_comercial
+```
+
+Essa estrutura permite análises por diferentes perspectivas, como:
+
+* Tempo
+* Produto
+* Região
+* Canal
+* Segmento
+
+A modelagem dimensional facilita o consumo dos dados em ferramentas de BI, Data Warehouse e consultas SQL analíticas.
 
 ---
 
 ## DuckDB Analytics
 
-Após a criação da camada Gold, o projeto cria um banco analítico local usando DuckDB.
+Após a construção das camadas Gold, o projeto cria um banco analítico local utilizando DuckDB.
 
 Arquivo gerado:
 
@@ -201,7 +313,7 @@ Arquivo gerado:
 database/comercial_analytics.duckdb
 ```
 
-Views disponíveis:
+Views criadas sobre a Gold Analítica:
 
 ```text
 vw_gold_kpis_comerciais
@@ -209,7 +321,18 @@ vw_gold_funil_comercial
 vw_gold_pipeline_produto
 ```
 
-Essas views permitem consultar a camada Gold usando SQL.
+Views criadas sobre a Gold Dimensional:
+
+```text
+vw_dim_tempo
+vw_dim_produto
+vw_dim_regiao
+vw_dim_canal
+vw_dim_segmento
+vw_fato_comercial
+```
+
+Essas views permitem consultar os dados tratados e modelados diretamente via SQL.
 
 ---
 
@@ -244,31 +367,38 @@ python main.py
 Esse comando executa:
 
 ```text
-Ingestão Raw → Bronze
-Transformação Bronze → Silver
+Raw → Bronze
+Bronze → Silver
 Validação de qualidade
-Construção da camada Gold
+Gold Analítica
+Gold Dimensional
 ```
 
-### 5. Criar banco DuckDB
+### 5. Criar ou atualizar banco DuckDB
 
 ```bash
 python create_database.py
 ```
 
-### 6. Consultar o banco analítico
+### 6. Consultar views analíticas
 
 ```bash
 python query_database.py
+```
+
+### 7. Consultar modelo dimensional
+
+```bash
+python query_dimensional.py
 ```
 
 ---
 
 ## Consultas Auxiliares
 
-O projeto também possui arquivos auxiliares para conferência das camadas.
+O projeto também possui scripts de conferência para validar as camadas criadas.
 
-### Verificar abas do Excel
+### Verificar abas da base Excel
 
 ```bash
 python check_excel.py
@@ -296,7 +426,7 @@ python query_gold.py
 
 ## Exemplos de Consultas SQL
 
-Consulta de receita, meta e atingimento por mês:
+### Receita, meta e atingimento por mês
 
 ```sql
 SELECT
@@ -309,7 +439,9 @@ FROM vw_gold_kpis_comerciais
 ORDER BY ano, mes;
 ```
 
-Consulta de pipeline por produto:
+---
+
+### Pipeline por produto
 
 ```sql
 SELECT
@@ -321,7 +453,9 @@ FROM vw_gold_pipeline_produto
 ORDER BY pipeline_aberto DESC;
 ```
 
-Consulta do funil comercial consolidado:
+---
+
+### Funil comercial consolidado
 
 ```sql
 SELECT
@@ -335,9 +469,45 @@ ORDER BY ordem;
 
 ---
 
+### Consulta dimensional com fato e dimensões
+
+```sql
+SELECT
+    t.competencia,
+    t.rotulo,
+    p.produto,
+    r.regiao,
+    c.canal,
+    SUM(f.receita) AS receita,
+    SUM(f.meta) AS meta,
+    SUM(f.pipeline_aberto) AS pipeline_aberto,
+    SUM(f.forecast_ponderado) AS forecast_ponderado,
+    ROUND(SUM(f.receita) / NULLIF(SUM(f.meta), 0) * 100, 2) AS atingimento_meta_pct
+FROM vw_fato_comercial f
+INNER JOIN vw_dim_tempo t
+    ON f.sk_tempo = t.sk_tempo
+INNER JOIN vw_dim_produto p
+    ON f.sk_produto = p.sk_produto
+INNER JOIN vw_dim_regiao r
+    ON f.sk_regiao = r.sk_regiao
+INNER JOIN vw_dim_canal c
+    ON f.sk_canal = c.sk_canal
+GROUP BY
+    t.competencia,
+    t.rotulo,
+    p.produto,
+    r.regiao,
+    c.canal
+ORDER BY
+    t.competencia,
+    receita DESC;
+```
+
+---
+
 ## Resultado Esperado
 
-Ao executar o pipeline principal, espera-se a geração dos seguintes arquivos:
+Ao executar o pipeline principal, os seguintes arquivos são gerados:
 
 ```text
 data/bronze/bronze_comercial.parquet
@@ -345,9 +515,15 @@ data/silver/silver_comercial.parquet
 data/gold/gold_kpis_comerciais.parquet
 data/gold/gold_funil_comercial.parquet
 data/gold/gold_pipeline_produto.parquet
+data/gold/dim_tempo.parquet
+data/gold/dim_produto.parquet
+data/gold/dim_regiao.parquet
+data/gold/dim_canal.parquet
+data/gold/dim_segmento.parquet
+data/gold/fato_comercial.parquet
 ```
 
-Após executar o script de criação do banco, também será gerado:
+Após executar o script de banco:
 
 ```text
 database/comercial_analytics.duckdb
@@ -355,30 +531,41 @@ database/comercial_analytics.duckdb
 
 ---
 
-## Objetivo do Projeto
+## Principais Competências Demonstradas
 
-Este projeto foi desenvolvido com foco em portfólio de Engenharia de Dados, demonstrando a construção de um pipeline analítico ponta a ponta.
-
-A solução cobre desde a ingestão de uma base Excel até a disponibilização dos dados em uma camada Gold consultável via SQL.
+* Engenharia de Dados com Python
+* Ingestão de dados a partir de Excel
+* Arquitetura em camadas
+* Criação de camadas Bronze, Silver e Gold
+* Uso de arquivos Parquet
+* Tratamento e padronização de dados
+* Validação de qualidade de dados
+* Modelagem analítica
+* Modelagem dimensional
+* Construção de modelo estrela
+* Criação de tabela fato e dimensões
+* Uso de DuckDB como banco analítico local
+* Criação de views SQL
+* Consultas analíticas com SQL
+* Organização de projeto para GitHub
+* Versionamento com Git
 
 ---
 
-## Principais Competências Demonstradas
+## Próximas Evoluções
 
-* Ingestão de dados com Python
-* Manipulação de arquivos Excel
-* Criação de arquitetura em camadas
-* Uso de arquivos Parquet
-* Tratamento e padronização de dados
-* Validação de qualidade
-* Modelagem de dados analíticos
-* Consultas SQL com DuckDB
-* Criação de banco analítico local
-* Organização de projeto para GitHub
-* Preparação de dados para dashboards e análises
+Possíveis melhorias futuras para o projeto:
+
+* Implementação com dbt
+* Criação de testes automatizados com dbt tests
+* Orquestração com Prefect ou Airflow
+* Containerização com Docker
+* Execução automatizada com GitHub Actions
+* Integração com Power BI
+* Simulação em ambiente cloud com Azure, Fabric ou AWS
 
 ---
 
 ## Autor
 
-Projeto desenvolvido por José Gustavo Loureiro Campos Silva como parte de um portfólio focado em Engenharia de Dados, Analytics Engineering e Business Intelligence.
+Projeto desenvolvido por **José Gustavo Loureiro Campos Silva** como parte de um portfólio focado em Engenharia de Dados, Analytics Engineering e Business Intelligence.

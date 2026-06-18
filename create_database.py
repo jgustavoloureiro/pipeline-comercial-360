@@ -10,6 +10,7 @@ def criar_banco_analytics():
 
     con = duckdb.connect(str(database_path))
 
+    # Views Gold Analítica
     con.execute("""
         CREATE OR REPLACE VIEW vw_gold_kpis_comerciais AS
         SELECT *
@@ -28,7 +29,44 @@ def criar_banco_analytics():
         FROM read_parquet('data/gold/gold_pipeline_produto.parquet')
     """)
 
-    print("Banco DuckDB criado com sucesso.")
+    # Views Gold Dimensional
+    con.execute("""
+        CREATE OR REPLACE VIEW vw_dim_tempo AS
+        SELECT *
+        FROM read_parquet('data/gold/dim_tempo.parquet')
+    """)
+
+    con.execute("""
+        CREATE OR REPLACE VIEW vw_dim_produto AS
+        SELECT *
+        FROM read_parquet('data/gold/dim_produto.parquet')
+    """)
+
+    con.execute("""
+        CREATE OR REPLACE VIEW vw_dim_regiao AS
+        SELECT *
+        FROM read_parquet('data/gold/dim_regiao.parquet')
+    """)
+
+    con.execute("""
+        CREATE OR REPLACE VIEW vw_dim_canal AS
+        SELECT *
+        FROM read_parquet('data/gold/dim_canal.parquet')
+    """)
+
+    con.execute("""
+        CREATE OR REPLACE VIEW vw_dim_segmento AS
+        SELECT *
+        FROM read_parquet('data/gold/dim_segmento.parquet')
+    """)
+
+    con.execute("""
+        CREATE OR REPLACE VIEW vw_fato_comercial AS
+        SELECT *
+        FROM read_parquet('data/gold/fato_comercial.parquet')
+    """)
+
+    print("Banco DuckDB criado/atualizado com sucesso.")
     print(f"Arquivo: {database_path}")
 
     print("\nViews criadas:")
